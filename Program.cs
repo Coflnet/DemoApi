@@ -1,7 +1,9 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
 using Coflnet.Core;
+using Coflnet.Tab;
 using Microsoft.OpenApi.Models;
+using OpenAI.Extensions;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,6 +24,8 @@ builder.Services.AddSwaggerGen(c =>
     AddXmlDoc(c);
 });
 builder.Services.AddCoflnetCore();
+builder.Services.AddSingleton<AIPromtService>();
+builder.Services.AddOpenAIService(settings => { settings.ApiKey = builder.Configuration["OpenAiApiKey"]; });
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());

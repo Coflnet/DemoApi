@@ -1,0 +1,25 @@
+{
+    "text": "Neuer Eintrag zu Volk 7, Wabensitz gut der Ertrag ist 4 und ein halb killogram Dr Mittelwand Futter vorhanden",
+    "columnWithDescription": {
+      "voksmut": {
+        "type": "String",
+        "description": ""
+      },
+      "wabensitz": {
+        "type": "String",
+        "description": ""
+      },
+      "ertrag": {
+        "type": "Number"
+      },
+      "Voksnummer": {
+        "type": "Integer"
+      },
+      "Notiz": {
+        "type": "String",
+        "description": "Extra Information"
+      }
+    },
+    "requiredColums": [
+    ]
+  }
