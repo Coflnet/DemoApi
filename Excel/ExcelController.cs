@@ -55,11 +55,11 @@ public class ExcelController : ControllerBase
         }
 
         System.IO.File.WriteAllText("output.json", JsonConvert.SerializeObject(raw));
-        return Ok(Map(raw));
+        return Ok(MapColumns(raw));
     }
 
     [HttpGet]
-    public MappingResult2 Get()
+    public MapingResult Get()
     {
         var raw = JsonConvert.DeserializeObject<List<(string brand, string product)>>(
             System.IO.File.ReadAllText("output.json"));
@@ -83,7 +83,7 @@ public class ExcelController : ControllerBase
 
     private static Dictionary<string, string> Brands = new();
 
-    public static MappingResult2 Map(List<(string brand, string product)> raw)
+    public static MapingResult Map(List<(string brand, string product)> raw)
     {
         var fullGroup = raw.GroupBy(x => GetLookupKey(x.brand))
             .Where(f => f.Count() > 1)
@@ -144,14 +144,12 @@ public class ExcelController : ControllerBase
             var product = GetLookupKey(item.product);
             if (brandIds.ContainsKey(lookup))
             {
-                result2.NoChangeNecessary.Add(new(item.brand, item.brand));
                 continue;
             }
 
             if (Brands.TryGetValue(lookup, out var name))
             {
                 AddMatch(result, item, name);
-                result2.NoChangeNecessary.Add(new(item.brand, item.brand));
                 continue;
             }
 
@@ -162,11 +160,6 @@ public class ExcelController : ControllerBase
             {
                 var fullName = brandIds[best.brand];
                 AddMatch(result, item, fullName, "brand");
-
-                if (best.distance == 0)
-                    result2.NoChangeNecessary.Add(new(item.brand, item.brand));
-                else
-                    result2.Mapped.Add(new(item.brand, best.brand));
 
                 continue;
             }
@@ -180,11 +173,6 @@ public class ExcelController : ControllerBase
             if (bestProduct.distance < Math.Min(4, lookup.Length / 4))
             {
                 AddMatch(result, item, brandIds[bestProduct.brand], "product");
-                if (bestProduct.distance == 0)
-                    result2.NoChangeNecessary.Add(new(item.brand, item.brand));
-                else
-                    result2.Mapped.Add(new(item.brand, bestProduct.brand));
-
                 continue;
             }
 
@@ -192,8 +180,6 @@ public class ExcelController : ControllerBase
             if (containing.Value != default)
             {
                 AddMatch(result, item, containing.Value, "containing");
-                result2.Mapped.Add(new(item.brand, containing.Value));
-
                 continue;
             }
 
@@ -206,7 +192,7 @@ public class ExcelController : ControllerBase
             result2.Unmappable.Add(new(item.brand, item.brand));
         }
 
-        return result2;
+        return result;
     }
 
     static void AddMatch(MapingResult result, (string brand, string product) item, string name, string? by = null)
@@ -233,12 +219,24 @@ public class ExcelController : ControllerBase
         return brandIds.FirstOrDefault(b => (product.Contains(b.Key) || lookup.Contains(b.Key)) && (b.Key.Length > 3));
     }
 
+    internal static MappingResult2 MapColumns(List<(string brand, string product)> raw)
+    {
+        var baseMap = Map(raw);
+        return new()
+        {
+            Brands = baseMap.BrandOccurences.Keys.ToList(),
+            NoChangeNecessary = baseMap.BrandOccurences.SelectMany(x => Enumerable.Repeat(x.Key, x.Value.Where(v => v.Brand == x.Key).Sum(v => v.OccuredTimes))).ToList(),
+            Mapped = baseMap.BrandOccurences.SelectMany(x => x.Value.Where(v => v.Brand != x.Key).SelectMany(b=>Enumerable.Repeat(new MappingElement(b.Brand,b.Product,x.Key),b.OccuredTimes))).ToList(),
+            Unmappable = baseMap.Unmappable.Select(x => new UnMappable(x.Brand, x.Product)).ToList()
+        };
+    }
+
     public class MapElement
     {
         public string Brand { get; set; }
         public string Product { get; set; }
         public int OccuredTimes { get; set; }
-        public string By {get;set;}
+        public string By { get; set; }
     }
 
     public class MapingResult
@@ -250,18 +248,22 @@ public class ExcelController : ControllerBase
     public class MappingResult2
     {
         public List<string> Brands { get; set; }
-
-        public List<MappingElement> NoChangeNecessary { get; set; }
-
+        public List<string> NoChangeNecessary { get; set; }
         public List<MappingElement> Mapped { get; set; }
-
-        public List<MappingElement> Unmappable { get; set; }
+        public List<UnMappable> Unmappable { get; set; }
     }
 
-    public class MappingElement(string input, string output)
+    public class MappingElement(string input, string product, string output)
     {
-        public string Input { get; set; } = input;
+        public string InputBrand { get; set; } = input;
+        public string InputProduct { get; set; } = product;
 
         public string Output { get; set; } = output;
+    }
+
+    public class UnMappable(string input, string product)
+    {
+        public string InputBrand { get; set; } = input;
+        public string InputProduct { get; set; } = product;
     }
 }

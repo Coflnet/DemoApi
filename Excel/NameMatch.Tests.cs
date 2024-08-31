@@ -6,19 +6,19 @@ public class NameMatchTests
     [Test]
     public void Test1()
     {
-        var result = ExcelController.Map(new(){
+        var result = ExcelController.MapColumns(new(){
             ("wir kaufen dein auto", "wir kaufen dein auto"),
             ("wir kaufen dein auto", "Auto Verkauf"),
             ("wir kaufen dein auto", "Auto ankauf"),
             ("wirkaufendeinauto.de","Autoankauf")});
         
         result.Mapped
-            .Count(tuple => tuple.Output == "wirkaufendeinauto")
+            .Count(tuple => tuple.Output == "wir kaufen dein auto")
             .Should()
             .Be(1);
 
         result.NoChangeNecessary
-            .Count(tuple => tuple.Output == "wir kaufen dein auto")
+            .Count(tuple => tuple == "wir kaufen dein auto")
             .Should()
             .Be(3);
     }
@@ -26,7 +26,7 @@ public class NameMatchTests
     [Test]
     public void FullBrandnameContained()
     {
-        var result = ExcelController.Map(new()
+        var result = ExcelController.MapColumns(new()
         {
             ("bild zeitung", "Tageszeitung"),
             ("bild zeitung", "Zeitung"),
@@ -34,7 +34,7 @@ public class NameMatchTests
         });
 
         result.NoChangeNecessary
-            .Count(tuple => tuple.Output == "bild zeitung")
+            .Count(tuple => tuple == "bild zeitung")
             .Should()
             .Be(2);
 
