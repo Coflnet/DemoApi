@@ -99,8 +99,8 @@ public class ExcelController : ControllerBase
         {
             foreach (var secondKey in brandIds.Keys)
             {
-                var distance = Fastenshtein.Levenshtein.Distance(item, secondKey);
-                if (distance != 1 || item.Length <= 2)
+                var distence = Fastenshtein.Levenshtein.Distance(item, secondKey);
+                if (distence != 1 || item.Length <= 4)
                 {
                     continue;
                 }
@@ -161,7 +161,7 @@ public class ExcelController : ControllerBase
             if (best.distance < Math.Min(4, lookup.Length / 2))
             {
                 var fullName = brandIds[best.brand];
-                AddMatch(result, item, fullName);
+                AddMatch(result, item, fullName, "brand");
 
                 if (best.distance == 0)
                     result2.NoChangeNecessary.Add(new(item.brand, item.brand));
@@ -179,7 +179,7 @@ public class ExcelController : ControllerBase
 
             if (bestProduct.distance < Math.Min(4, lookup.Length / 4))
             {
-                AddMatch(result, item, brandIds[bestProduct.brand]);
+                AddMatch(result, item, brandIds[bestProduct.brand], "product");
                 if (bestProduct.distance == 0)
                     result2.NoChangeNecessary.Add(new(item.brand, item.brand));
                 else
@@ -191,7 +191,7 @@ public class ExcelController : ControllerBase
             var containing = GetContaining(brandIds, lookup, product, item);
             if (containing.Value != default)
             {
-                AddMatch(result, item, containing.Value);
+                AddMatch(result, item, containing.Value, "containing");
                 result2.Mapped.Add(new(item.brand, containing.Value));
 
                 continue;
@@ -209,7 +209,7 @@ public class ExcelController : ControllerBase
         return result2;
     }
 
-    static void AddMatch(MapingResult result, (string brand, string product) item, string name)
+    static void AddMatch(MapingResult result, (string brand, string product) item, string name, string? by = null)
     {
         var list = result.BrandOccurences.GetValueOrDefault(name, new());
         list.Add(new MapElement()
@@ -238,6 +238,7 @@ public class ExcelController : ControllerBase
         public string Brand { get; set; }
         public string Product { get; set; }
         public int OccuredTimes { get; set; }
+        public string By {get;set;}
     }
 
     public class MapingResult
