@@ -31,6 +31,22 @@ builder.Services.AddControllers().AddJsonOptions(o =>
     o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
+var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(
+        name: MyAllowSpecificOrigins,
+        builder =>
+        {
+            builder
+                .WithOrigins("*")
+                .AllowAnyMethod()
+                .AllowAnyHeader();
+        }
+    );
+});
+
 var app = builder.Build();
 
 app.UseSwagger(c =>
@@ -53,6 +69,7 @@ app.Use(async (context, next) =>
     Console.WriteLine($"Request: {context.Request.Path}");
     await next();
 });
+app.UseCors(MyAllowSpecificOrigins);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
