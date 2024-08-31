@@ -86,7 +86,7 @@ public class ExcelController : ControllerBase
     public static MapingResult Map(List<(string brand, string product)> raw)
     {
         var fullGroup = raw.GroupBy(x => GetLookupKey(x.brand))
-            .Where(f => f.Count() > 1)
+            .Where(f => f.Count() > 2 && IsBrand(f.Key))
             .ToDictionary(s => s.GroupBy(s => s.brand).OrderByDescending(b => b.Count()).First().Key, s => s);
 
         var brandIds = fullGroup.ToDictionary(x => GetLookupKey(x.Key), x => x.Key);
@@ -205,6 +205,17 @@ public class ExcelController : ControllerBase
             OccuredTimes = 1
         });
         result.BrandOccurences[name] = list;
+    }
+
+    static bool IsBrand(string brand)
+    {
+        Console.WriteLine($"checking if {brand} is a brand");
+        var forbiddenKeywords = new[] {"keine", "kein", "weiß nicht", "weiss nicht"};
+
+        if (forbiddenKeywords.Contains(brand.ToLower()))
+            return false;
+        
+        return true;
     }
 
     static string GetLookupKey(string val)
