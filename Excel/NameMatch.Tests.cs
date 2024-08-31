@@ -11,15 +11,36 @@ public class NameMatchTests
             ("wir kaufen dein auto", "Auto Verkauf"),
             ("wir kaufen dein auto", "Auto ankauf"),
             ("wirkaufendeinauto.de","Autoankauf")});
-        result.BrandOccurences["wir kaufen dein auto"].Count.Should().Be(4);
+        
+        result.Mapped
+            .Count(tuple => tuple.Output == "wirkaufendeinauto")
+            .Should()
+            .Be(1);
+
+        result.NoChangeNecessary
+            .Count(tuple => tuple.Output == "wir kaufen dein auto")
+            .Should()
+            .Be(3);
     }
+
     [Test]
     public void FullBrandnameContained()
     {
-        var result = ExcelController.Map(new(){
+        var result = ExcelController.Map(new()
+        {
             ("bild zeitung", "Tageszeitung"),
             ("bild zeitung", "Zeitung"),
-            ("bild.de","Für die Bild Zeitung")});
-        result.BrandOccurences["bild zeitung"].Count.Should().Be(3);
+            ("bild.de", "Für die Bild Zeitung")
+        });
+
+        result.NoChangeNecessary
+            .Count(tuple => tuple.Output == "bild zeitung")
+            .Should()
+            .Be(2);
+
+        result.Mapped
+            .Count(tuple => tuple.Output == "bild zeitung")
+            .Should()
+            .Be(1);
     }
 }
