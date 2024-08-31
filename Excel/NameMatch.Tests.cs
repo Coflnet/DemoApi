@@ -1,12 +1,28 @@
+using Coflnet.Excel;
 using FluentAssertions;
+using Moq;
 using NUnit.Framework;
 
 public class NameMatchTests
 {
-    [Test]
-    public void Test1()
+    BrandMappingService ExcelController ;
+
+    [SetUp]
+    public void Setup()
     {
-        var result = ExcelController.MapColumns(new(){
+        var isCompany = new Mock<IIsCompanyService>();
+        isCompany.Setup(x => x.CheckBatch(It.IsAny<List<string>>()))
+            .ReturnsAsync(new Dictionary<string, bool>
+            {
+                {"wir kaufen dein auto", true},
+                {"bild zeitung", true}
+            });
+        ExcelController = new BrandMappingService(isCompany.Object);
+    }
+    [Test]
+    public async Task Test1()
+    {
+        var result = await ExcelController.MapColumns(new(){
             ("wir kaufen dein auto", "wir kaufen dein auto"),
             ("wir kaufen dein auto", "Auto Verkauf"),
             ("wir kaufen dein auto", "Auto ankauf"),
@@ -24,11 +40,12 @@ public class NameMatchTests
     }
 
     [Test]
-    public void FullBrandnameContained()
+    public async Task FullBrandnameContained()
     {
-        var result = ExcelController.MapColumns(new()
+        var result = await ExcelController.MapColumns(new()
         {
             ("bild zeitung", "Tageszeitung"),
+            ("bild zeitung", "Zeitung"),
             ("bild zeitung", "Zeitung"),
             ("bild.de", "Für die Bild Zeitung")
         });
@@ -36,7 +53,7 @@ public class NameMatchTests
         result.NoChangeNecessary
             .Count(tuple => tuple == "bild zeitung")
             .Should()
-            .Be(2);
+            .Be(3);
 
         result.Mapped
             .Count(tuple => tuple.Output == "bild zeitung")
