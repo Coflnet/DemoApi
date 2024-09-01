@@ -35,13 +35,8 @@ public class BrandMappingService
 
     public async Task<MapingResult> Map(List<(string brand, string product)> raw)
     {
-        var fullGroup = raw.GroupBy(x => GetLookupKey(x.brand))
-            .Where(f => f.Count() > 2 && IsBrand(f.Key))
-            .ToDictionary(s => s.GroupBy(s => s.brand).OrderByDescending(b => b.Count()).First().Key, s => s);
-
-        var isbrandLookup = await isCompanyService.CheckBatch(fullGroup.Keys.ToList());
-        Console.WriteLine(JsonConvert.SerializeObject(isbrandLookup, Formatting.Indented));
-        var brandIds = fullGroup.Where(g=>isbrandLookup.ContainsKey(g.Key) && isbrandLookup[g.Key])
+        var fullGroup = await GroupByValidBrands(raw);
+        var brandIds = fullGroup
                 .ToDictionary(x => GetLookupKey(x.Key), x => x.Key);
         foreach (var item in Brands)
         {
@@ -146,6 +141,18 @@ public class BrandMappingService
         }
 
         return result;
+    }
+
+    private async Task<Dictionary<string, IGrouping<string, (string brand, string product)>>> GroupByValidBrands(List<(string brand, string product)> raw)
+    {
+        var fullGroup = raw.GroupBy(x => GetLookupKey(x.brand))
+            .Where(f => f.Count() > 2 && IsBrand(f.Key))
+            .ToDictionary(s => s.GroupBy(s => s.brand).OrderByDescending(b => b.Count()).First().Key, s => s);
+
+        var isbrandLookup = await isCompanyService.CheckBatch(fullGroup.Keys.ToList());
+        fullGroup = fullGroup.Where(x => isbrandLookup[x.Key]).ToDictionary(x => x.Key, x => x.Value);
+        Console.WriteLine(JsonConvert.SerializeObject(isbrandLookup, Formatting.Indented));
+        return fullGroup;
     }
 
     static void AddMatch(MapingResult result, (string brand, string product) item, string name, string? by = null)
