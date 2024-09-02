@@ -72,11 +72,11 @@ public class ImportController(ILogger<ImportController> logger, SurveryGenerator
     [ProducesResponseType<List<SurveryResult>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<HttpResponseMessage?> GeneratedSurverysAsExcel([FromQuery] int count = 100)
+    public async Task GeneratedSurverysAsExcel([FromQuery] int count = 100)
     {
         var file = Request.Form.Files.FirstOrDefault();
         if (file == null)
-            return null;
+            return;
 
         try
         {
@@ -89,12 +89,12 @@ public class ImportController(ILogger<ImportController> logger, SurveryGenerator
             var rows = table.Rows.OfType<DataRow>().ToList();
 
             var wb = GenerateExcelFile(rows, count);
-            return wb.Deliver("generated-surveys.xlsx");
+            var response = Response;
+            response.DeliverWorkbook(wb, "generated-surverys.xlsx");
         }
         catch (Exception e)
         {
             logger.LogError(e, "Error while generating more surveys");
-            return null;
         }
     }
 
@@ -132,7 +132,11 @@ public class ImportController(ILogger<ImportController> logger, SurveryGenerator
                         continue;
 
                     var value = property.GetValue(survey);
-                    ws.Cell(3 + i, j + 1).Value = value?.ToString();
+                    
+                    if (property.PropertyType == typeof(bool) || Nullable.GetUnderlyingType(property.PropertyType) == typeof(bool))
+                        ws.Cell(3 + i, j + 1).Value = (bool)(value ?? false) ? "1" : "0";
+                    else
+                        ws.Cell(3 + i, j + 1).Value = value?.ToString();
                 }
 
                 i++;

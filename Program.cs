@@ -4,6 +4,7 @@ using Coflnet.Core;
 using Coflnet.Excel;
 using Coflnet.Tab;
 using DemoApi.Excel;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.OpenApi.Models;
 using OpenAI.Extensions;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -35,6 +36,11 @@ builder.Services.AddOpenAIService(settings => { settings.ApiKey = builder.Config
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
+builder.Services.Configure<KestrelServerOptions>(opt =>
+{
+    opt.AllowSynchronousIO = true;
 });
 
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
