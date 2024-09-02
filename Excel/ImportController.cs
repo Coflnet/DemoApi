@@ -1,4 +1,6 @@
 using System.Data;
+using ClosedXML.Excel;
+using ClosedXML.Extensions;
 using DemoApi.Models;
 using ExcelDataReader;
 using Microsoft.AspNetCore.Mvc;
@@ -37,7 +39,7 @@ public class ImportController(ILogger<ImportController> logger, SurveryGenerator
             return StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
-    
+
     [HttpPost("generate")]
     [ProducesResponseType<List<SurveryResult>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -66,6 +68,80 @@ public class ImportController(ILogger<ImportController> logger, SurveryGenerator
         }
     }
 
+    [HttpPost("generateExcel")]
+    [ProducesResponseType<List<SurveryResult>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<HttpResponseMessage?> GeneratedSurverysAsExcel([FromQuery] int count = 100)
+    {
+        var file = Request.Form.Files.FirstOrDefault();
+        if (file == null)
+            return null;
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+            var dataset = reader.AsDataSet();
+            var table = dataset.Tables[0];
+
+            var rows = table.Rows.OfType<DataRow>().ToList();
+
+            var wb = GenerateExcelFile(rows, count);
+            return wb.Deliver("generated-surveys.xlsx");
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error while generating more surveys");
+            return null;
+        }
+    }
+
+    private XLWorkbook GenerateExcelFile(IList<DataRow> rows, int count)
+    {
+        var keys = ExtractKeysFromDataRows(rows);
+        var labels = ExtractLabelsFromDataRows(rows);
+        var seed = ProcessRows(rows);
+        var surveys = generator.GenerateSurverys(seed, count);
+
+
+        var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Surveys");
+
+        // write keys
+        for (var i = 0; i < keys.Count; i++)
+            ws.Cell(1, i + 1).Value = keys[i];
+
+        // write labels
+        for (var i = 0; i < labels.Count; i++)
+            ws.Cell(2, i + 1).Value = labels[i];
+
+        // write surveys
+        {
+            var i = 0;
+            foreach (var survey in surveys)
+            {
+                var properties = survey.GetType().GetProperties();
+
+                for (var j = 0; j < keys.Count; j++)
+                {
+                    var key = keys[j];
+                    var property = properties.FirstOrDefault(p => p.Name == key);
+                    if (property == null)
+                        continue;
+
+                    var value = property.GetValue(survey);
+                    ws.Cell(3 + i, j + 1).Value = value?.ToString();
+                }
+
+                i++;
+            }
+        }
+
+        return wb;
+    }
+
     private IList<SurveryResult> ProcessRows(IList<DataRow> rows, CancellationToken stoppingToken = default)
     {
         var keys = ExtractKeysFromDataRows(rows);
@@ -81,7 +157,6 @@ public class ImportController(ILogger<ImportController> logger, SurveryGenerator
         for (var i = 0; i < keys.Count; i++)
         {
             var key = keys[i];
-            var label = labels[i];
             var values = records[i];
 
             for (var j = 0; j < values.Count; j++)
