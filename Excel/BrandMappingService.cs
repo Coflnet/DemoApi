@@ -150,7 +150,7 @@ public class BrandMappingService
             .ToDictionary(s => s.GroupBy(s => s.brand).OrderByDescending(b => b.Count()).First().Key, s => s);
 
         var isbrandLookup = await isCompanyService.CheckBatch(fullGroup.Keys.ToList());
-        fullGroup = fullGroup.Where(x => isbrandLookup[x.Key]).ToDictionary(x => x.Key, x => x.Value);
+        fullGroup = fullGroup.Where(x => isbrandLookup.GetValueOrDefault(x.Key, true)).ToDictionary(x => x.Key, x => x.Value);
         Console.WriteLine(JsonConvert.SerializeObject(isbrandLookup, Formatting.Indented));
         return fullGroup;
     }
