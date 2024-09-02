@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Coflnet.Core;
 using Coflnet.Excel;
 using Coflnet.Tab;
+using DemoApi.Excel;
 using Microsoft.OpenApi.Models;
 using OpenAI.Extensions;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -28,6 +29,7 @@ builder.Services.AddCoflnetCore();
 builder.Services.AddSingleton<AIPromtService>();
 builder.Services.AddSingleton<IIsCompanyService,IsCompanyService>();
 builder.Services.AddSingleton<BrandMappingService>();
+builder.Services.AddSingleton<SurveryGenerator>();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddOpenAIService(settings => { settings.ApiKey = builder.Configuration["OpenAiApiKey"]; });
 builder.Services.AddControllers().AddJsonOptions(o =>

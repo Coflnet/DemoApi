@@ -8,7 +8,7 @@ namespace DemoApi.Excel;
 /// <inheritdoc />
 [ApiController]
 [Route("api/[controller]")]
-public class ImportController(ILogger<ImportController> logger) : ControllerBase
+public class ImportController(ILogger<ImportController> logger, SurveryGenerator generator) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType<List<SurveryResult>>(StatusCodes.Status200OK)]
@@ -29,12 +29,39 @@ public class ImportController(ILogger<ImportController> logger) : ControllerBase
             var table = dataset.Tables[0];
 
             var surveys = ProcessRows(table.Rows.OfType<DataRow>().ToList(), HttpContext.RequestAborted);
-
             return Ok(surveys);
         }
         catch (Exception e)
         {
             logger.LogError(e, "Error while processing excel file");
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
+    }
+    
+    [HttpPost("generate")]
+    [ProducesResponseType<List<SurveryResult>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetMoreSurverys([FromQuery] int count = 100)
+    {
+        var file = Request.Form.Files.FirstOrDefault();
+        if (file == null)
+            return BadRequest();
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+            var dataset = reader.AsDataSet();
+            var table = dataset.Tables[0];
+
+            var surveys = ProcessRows(table.Rows.OfType<DataRow>().ToList(), HttpContext.RequestAborted);
+            return Ok(generator.GenerateSurverys(surveys, count));
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error while generating more surveys");
             return StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
