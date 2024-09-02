@@ -1,6 +1,5 @@
 using System.Data;
 using ClosedXML.Excel;
-using ClosedXML.Extensions;
 using DemoApi.Models;
 using ExcelDataReader;
 using Microsoft.AspNetCore.Mvc;
@@ -68,19 +67,24 @@ public class ImportController(ILogger<ImportController> logger, SurveryGenerator
         }
     }
 
-    [HttpPost("generateExcel")]
+    [HttpPost("generateExcel/{count}")]
     [ProducesResponseType<List<SurveryResult>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task GeneratedSurverysAsExcel([FromQuery] int count = 100)
+    public IActionResult GeneratedSurverysAsExcel(string count = "100")
     {
         var file = Request.Form.Files.FirstOrDefault();
         if (file == null)
-            return;
+        {
+            logger.LogWarning($"file is null, stop here");
+            return BadRequest();
+        }
+        
+        logger.LogInformation($"file name: {file.FileName}");
 
         try
         {
-            await using var stream = file.OpenReadStream();
+            using var stream = file.OpenReadStream();
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
             using var reader = ExcelReaderFactory.CreateReader(stream);
             var dataset = reader.AsDataSet();
@@ -88,13 +92,21 @@ public class ImportController(ILogger<ImportController> logger, SurveryGenerator
 
             var rows = table.Rows.OfType<DataRow>().ToList();
 
-            var wb = GenerateExcelFile(rows, count);
-            var response = Response;
-            response.DeliverWorkbook(wb, "generated-surverys.xlsx");
+            var wb = GenerateExcelFile(rows, int.Parse(count));
+            
+            // save to file
+            var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.xlsx");
+            wb.SaveAs(path);
+            
+            logger.LogInformation($"file: {path}");
+            
+            // return file
+            return File(System.IO.File.ReadAllBytes(path), "application/ms-excel", Path.GetFileName(path));
         }
         catch (Exception e)
         {
             logger.LogError(e, "Error while generating more surveys");
+            return StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
 
