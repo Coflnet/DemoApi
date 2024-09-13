@@ -18,7 +18,7 @@ public class AIPromtService
         this.logger = logger;
     }
 
-    public async Task<Dictionary<string, object>[]> PromptAi(string text, Dictionary<string, PropertyInfo> columnWithDescription, List<string> requiredColumns)
+    public async Task<Dictionary<string, string>[]> PromptAi(string text, Dictionary<string, PropertyInfo> columnWithDescription, List<string> requiredColumns)
     {
         var response = await openAIService.ChatCompletion.CreateCompletion(new OpenAI.ObjectModels.RequestModels.ChatCompletionCreateRequest()
         {
@@ -74,13 +74,13 @@ public class AIPromtService
         else
         {
             logger.LogError("Failed to get completion from OpenAI {error}", JsonConvert.SerializeObject(response.Error));
-            return new Dictionary<string, object>[0];
+            return Array.Empty<Dictionary<string, string>>();
         }
 
     }
 
-    public class Response 
+    public class Response
     {
-        public Dictionary<string, object>[] Lines { get; set; }
+        public Dictionary<string, string>[] Lines { get; set; }
     }
 }

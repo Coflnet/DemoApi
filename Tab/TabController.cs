@@ -15,7 +15,7 @@ public class TabController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<Dictionary<string, object>[]> Post(TabRequest request)
+    public async Task<Dictionary<string, string>[]> Post(TabRequest request)
     {
         return await promtService.PromptAi(request.Text, request.ColumnWithDescription, request.RequiredColums);
     }
