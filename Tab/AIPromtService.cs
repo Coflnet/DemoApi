@@ -20,6 +20,8 @@ public class AIPromtService
 
     public async Task<Dictionary<string, string>[]> PromptAi(string text, Dictionary<string, PropertyInfo> columnWithDescription, List<string> requiredColumns)
     {
+        if (IsTooShortToNotHallucinate(text))
+            return Array.Empty<Dictionary<string, string>>();
         var response = await openAIService.ChatCompletion.CreateCompletion(new OpenAI.ObjectModels.RequestModels.ChatCompletionCreateRequest()
         {
             Model = "gpt-4o-mini",
@@ -77,6 +79,11 @@ public class AIPromtService
             return Array.Empty<Dictionary<string, string>>();
         }
 
+    }
+
+    private static bool IsTooShortToNotHallucinate(string text)
+    {
+        return text.Length < 10;
     }
 
     public class Response
