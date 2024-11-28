@@ -28,7 +28,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 builder.Services.AddCoflnetCore();
 builder.Services.AddSingleton<AIPromtService>();
-builder.Services.AddSingleton<IIsCompanyService,IsCompanyService>();
+builder.Services.AddSingleton<IIsCompanyService, IsCompanyService>();
 builder.Services.AddSingleton<BrandMappingService>();
 builder.Services.AddSingleton<SurveryGenerator>();
 builder.Services.AddDistributedMemoryCache();
@@ -85,6 +85,20 @@ app.UseCors(MyAllowSpecificOrigins);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.UseWebSockets();
+app.Map("/api/audio", async context =>
+{
+    if (context.WebSockets.IsWebSocketRequest)
+    {
+        var handler = new AudioHandler(context);
+        await handler.Handle();
+    }
+    else
+    {
+        context.Response.StatusCode = 400;
+    }
+});
+
 
 app.Run();
 

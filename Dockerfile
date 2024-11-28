@@ -9,6 +9,9 @@ RUN dotnet publish -c release -o /app
 FROM mcr.microsoft.com/dotnet/sdk:8.0
 WORKDIR /app
 
+# install ffmpeg
+RUN apt-get update && apt-get install -y ffmpeg
+
 COPY --from=build /app .
 ENV ASPNETCORE_URLS=http://+:8000
 
