@@ -1,3 +1,9 @@
 obj
 bin
 output.json
+*.wav
+*.opus
+*.pcm
+*.mp3
+*.webm
+temp

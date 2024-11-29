@@ -9,6 +9,19 @@
         ws.onopen = () => console.log('WebSocket connected');
         ws.onclose = () => console.log('WebSocket closed');
         ws.onerror = (err) => console.error('WebSocket error:', err);
+        ws.onmessage = (event) => {
+            const message = event.data;
+            let json = JSON.parse(message);
+            console.log(json);
+            if(json.type == 'transcript'){
+                const element = document.createElement('div');
+                element.textContent = json.content;
+                document.body.appendChild(element);
+            }
+            if(json.type == 'speaking'){
+                console.log('speaking', json.content);
+            }
+        };
         if (!navigator.mediaDevices || !window.MediaRecorder) {
             console.error('MediaRecorder not supported on this browser.');
         } else {
@@ -39,7 +52,6 @@
                     mediaRecorder.ondataavailable = (event) => {
                         // do not send if there is no speach in the audio
                         if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-                            console.log('Sending chunk:', event.data);
                             ws.send(event.data); // Send chunk to server
                         }
                     };
@@ -47,18 +59,7 @@
                     // Event: Recording stopped
                     mediaRecorder.onstop = () => {
                         // Combine chunks into a single Blob
-                        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
 
-                        // Create a URL for the blob and log it (or download it)
-                        const audioURL = URL.createObjectURL(audioBlob);
-                        console.log('Recording URL:', audioURL);
-
-                        // Example: Create a download link
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = audioURL;
-                        downloadLink.download = 'recording.webm';
-                        downloadLink.textContent = 'Download recording';
-                        document.body.appendChild(downloadLink);
                     };
 
                     // Start recording
@@ -69,10 +70,14 @@
                     audio.play();
 
                     // Stop recording after 5 seconds (example)
-                    setTimeout(() => {
+                    setInterval(() => {
                         mediaRecorder.stop();
+                        mediaRecorder.start(500);
+                        setTimeout(() => {
+                            ws.send(JSON.stringify({ type: 'newFile' }));
+                        }, 1);
                         console.log('Recording stopped.');
-                    }, 15000); // Adjust time as needed
+                    }, 10000); // Adjust time as needed
                 } catch (err) {
                     console.error('Error accessing microphone:', err);
                 }
