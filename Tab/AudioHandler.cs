@@ -106,9 +106,18 @@ internal class AudioHandler
                 {
                     files.Insert(0, otherFile);
                 }
-                FFMpegArguments.FromConcatInput(files, opt => opt.Seek(processedAlready))
-                    .OutputToFile("recording.wav")
-                    .ProcessSynchronously();
+                try
+                {
+                    FFMpegArguments.FromConcatInput(files, opt => opt.Seek(processedAlready))
+                        .OutputToFile("recording.wav")
+                        .ProcessSynchronously();
+                }
+                catch (System.Exception e)
+                {
+                    await SendBack(webSocket, "error", e.Message);
+                    logger.LogError(e, "Error while processing audio");
+                    break;
+                }
                 var reader = new WaveFileReader("recording.wav");
                 var TotalTime = reader.TotalTime;
                 logger.LogDebug($"Previous file is {otherFile} current file is {fileName} total Length {TotalTime} {processedAlready}");
