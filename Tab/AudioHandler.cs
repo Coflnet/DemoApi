@@ -100,9 +100,12 @@ internal class AudioHandler
             {
                 fileStream.Flush();
                 var otherFile = names.Last();
-                if (!File.Exists(otherFile))
-                    continue; // temp since window is short
-                FFMpegArguments.FromConcatInput([otherFile, fileName], opt => opt.Seek(processedAlready))
+                List<string> files = [fileName];
+                if (File.Exists(otherFile))
+                {
+                    files.Insert(0, otherFile);
+                }
+                FFMpegArguments.FromConcatInput(files, opt => opt.Seek(processedAlready))
                     .OutputToFile("recording.wav")
                     .ProcessSynchronously();
                 var reader = new WaveFileReader("recording.wav");
@@ -155,7 +158,7 @@ internal class AudioHandler
 
                     });
                 }
-                if(speachResult.Count == 0)
+                if (speachResult.Count == 0)
                 {
                     await SendBack(webSocket, "speaking", "false");
                 }
