@@ -61,6 +61,7 @@ internal class AudioHandler
         //  var fileNameB = "b.webm";
         var remoteIpProxiedHeader = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault() ?? context.Connection.RemoteIpAddress.ToString();
         var tempFolder = Path.Combine(Path.GetTempPath(), "audio" + remoteIpProxiedHeader);
+        Directory.Delete(tempFolder, true);
         Directory.CreateDirectory(tempFolder);
         var names = new NameHandler(tempFolder);
         var fileName = names.GetCurrent();
