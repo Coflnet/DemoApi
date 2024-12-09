@@ -77,6 +77,7 @@ internal class AudioHandler
         var batchcount = 0;
         var lastVadFound = 0;
         var indexInStream = 0;
+        List<byte> header = new();
         var processedAlready = TimeSpan.Zero;
         do
         {
@@ -97,7 +98,13 @@ internal class AudioHandler
                 continue;
             }
             fileStream.Write(buffer, 0, result.Count);
-            if (batchcount++ % 3 == 2)
+
+
+            if (batchcount <= 1)
+            {
+                header.AddRange(buffer.Take(result.Count));
+            }
+            if (batchcount++ % 2 == 1 && batchcount > 2)
             {
                 fileStream.Flush();
                 var otherFile = names.Last();
@@ -168,9 +175,24 @@ internal class AudioHandler
 
                     });
                 }
-                if (speachResult.Count == 0)
+                if (speachResult.Count == 0 || speachResult.Last().End < array.Length - SAMPLE_RATE * 2)
                 {
                     await SendBack(webSocket, "speaking", "false");
+                    if (fileStream.Length > 1024 * 20)
+                    {
+                        logger.LogWarning("File too large, switching file {size}, {filename}, {buffer}", fileStream.Length, fileName, header.Count);
+                        fileStream.Flush();
+                        fileStream.Dispose();
+
+                        names.Forward();
+                        fileName = names.GetCurrent();
+                        File.Delete(fileName);
+                        fileStream = new FileStream(fileName, FileMode.Create);
+                        fileStream.Write(header.ToArray());
+                        processedAlready -= TimeSpan.FromSeconds(25);
+                        if (processedAlready < TimeSpan.Zero)
+                            processedAlready = TimeSpan.Zero;
+                    }
                 }
             }
         } while (!result.CloseStatus.HasValue);

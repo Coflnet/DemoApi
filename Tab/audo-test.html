@@ -2,8 +2,9 @@
 
 <head>
     <title>Audio Test</title>
+    <script src="recorder.min.js"></script>
     <script>
-        const ws = new WebSocket('ws://localhost:5159/api/audio');
+        const ws = new WebSocket('ws://192.168.2.177:5159/api/audio');
 
         // WebSocket events
         ws.onopen = () => console.log('WebSocket connected');
@@ -13,16 +14,17 @@
             const message = event.data;
             let json = JSON.parse(message);
             console.log(json);
-            if(json.type == 'transcript'){
+            if (json.type == 'transcript') {
                 const element = document.createElement('div');
                 element.textContent = json.content;
                 document.body.appendChild(element);
             }
-            if(json.type == 'speaking'){
+            if (json.type == 'speaking') {
                 console.log('speaking', json.content);
             }
         };
-        if (!navigator.mediaDevices || !window.MediaRecorder) {
+
+        if (!navigator.mediaDevices) {
             console.error('MediaRecorder not supported on this browser.');
         } else {
             // Function to start recording
@@ -33,51 +35,41 @@
                         audio: {
                             echoCancellation: false,
                             noiseSuppression: false,
-                            autoGainControl: false, sampleRate: 16000, channelCount: 1,
-                            // controls size of opus frame
-
+                            autoGainControl: false,
+                            sampleRate: 16000,
+                            channelCount: 1,
                         }
                     });
-                    console.log(MediaRecorder.isTypeSupported('audio/webm; codecs=opus')); // true or false
-                    console.log(MediaRecorder.isTypeSupported('audio/ogg; codecs=opus')); // Try alternative
 
-                    // Create MediaRecorder instance
-                    const options = { mimeType: 'audio/webm; codecs=opus' }; // Opus in a WebM container
-                    const mediaRecorder = new MediaRecorder(stream, options);
+                    const audioContext = new AudioContext();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const recorder = new Recorder(source, {
+                        encoderPath: 'https://cdn.jsdelivr.net/npm/opus-recorder/dist/encoderWorker.min.js',
+                        encoderSampleRate: 16000,
+                        encoderApplication: 2048, // VOIP
+                        encoderFrameSize: 60,
+                        streamPages: true,
+                    });
 
-                    // Array to hold recorded chunks
-                    const chunks = [];
-
-                    // Event: Data available
-                    mediaRecorder.ondataavailable = (event) => {
-                        // do not send if there is no speach in the audio
-                        if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-                            ws.send(event.data); // Send chunk to server
+                    recorder.ondataavailable = (typedArray) => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            console.log('Sending Opus packet:', typedArray.length, new Date().toISOString());
+                            ws.send(typedArray.buffer); // Send Opus packet to server
                         }
                     };
 
-                    // Event: Recording stopped
-                    mediaRecorder.onstop = () => {
-                        // Combine chunks into a single Blob
+                    recorder.start().then(() => {
+                        console.log('Recording started.');
+                    });
 
-                    };
-
-                    // Start recording
-                    mediaRecorder.start(500);
-                    console.log('Recording started.');
-                    const audio = document.createElement('audio');
-                    audio.srcObject = stream;
-                    audio.play();
-
-                    // Stop recording after 5 seconds (example)
-                    setInterval(() => {
-                        mediaRecorder.stop();
-                        mediaRecorder.start(500);
-                        setTimeout(() => {
+                    // Stop recording after 10 seconds (example)
+                    /*setInterval(() => {
+                        recorder.stop().then(() => {
                             ws.send(JSON.stringify({ type: 'newFile' }));
-                        }, 1);
-                        console.log('Recording stopped.');
-                    }, 10000); // Adjust time as needed
+                            console.log('Recording stopped.');
+                            recorder.start();
+                        });
+                    }, 10000); // Adjust time as needed*/
                 } catch (err) {
                     console.error('Error accessing microphone:', err);
                 }
@@ -88,3 +80,8 @@
         }
     </script>
 </head>
+
+<body>
+</body>
+
+</html>
