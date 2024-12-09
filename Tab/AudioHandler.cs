@@ -78,7 +78,9 @@ internal class AudioHandler
         var lastVadFound = 0;
         var indexInStream = 0;
         List<byte> header = new();
+        Dictionary<string, TimeSpan> extraCuttof = new();
         var processedAlready = TimeSpan.Zero;
+        var tryCutOff = false;
         do
         {
             result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
@@ -86,15 +88,6 @@ internal class AudioHandler
             if (isTextFrame)
             {
                 logger.LogDebug("Text frame received");
-                fileStream.Flush();
-                fileStream.Dispose();
-
-                names.Forward();
-                fileName = names.GetCurrent();
-                fileStream = new FileStream(fileName, FileMode.Create);
-                processedAlready -= TimeSpan.FromSeconds(10);
-                if (processedAlready < TimeSpan.Zero)
-                    processedAlready = TimeSpan.Zero;
                 continue;
             }
             fileStream.Write(buffer, 0, result.Count);
@@ -104,101 +97,117 @@ internal class AudioHandler
             {
                 header.AddRange(buffer.Take(result.Count));
             }
-            if (batchcount++ % 2 == 1 && batchcount > 2)
+            if (batchcount++ % 2 == 0 || batchcount <= 2)
             {
-                fileStream.Flush();
-                var otherFile = names.Last();
-                List<string> files = [fileName];
-                if (File.Exists(otherFile))
-                {
-                    files.Insert(0, otherFile);
-                }
-                try
-                {
-                    FFMpegArguments.FromConcatInput(files, opt => opt.Seek(processedAlready))
-                        .OutputToFile("recording.wav")
-                        .ProcessSynchronously();
-                }
-                catch (System.Exception e)
-                {
-                    await SendBack(webSocket, "error", e.Message);
-                    logger.LogError(e, "Error while processing audio");
-                    break;
-                }
-                var reader = new WaveFileReader("recording.wav");
-                var TotalTime = reader.TotalTime;
-                logger.LogDebug($"Previous file is {otherFile} current file is {fileName} total Length {TotalTime} {processedAlready}");
-                ISampleProvider sampleProvider;
+                continue;
+            }
+            fileStream.Flush();
+            var otherFile = names.Last();
+            List<string> files = [fileName];
+            if (File.Exists(otherFile))
+            {
+                files.Insert(0, otherFile);
+            }
+            try
+            {
+                FFMpegArguments.FromConcatInput(files, opt => opt.Seek(processedAlready))
+                    .OutputToFile("recording.wav")
+                    .ProcessSynchronously();
+            }
+            catch (System.Exception e)
+            {
+                await SendBack(webSocket, "error", e.Message);
+                logger.LogError(e, "Error while processing audio");
+                break;
+            }
+            var reader = new WaveFileReader("recording.wav");
+            var TotalTime = reader.TotalTime;
+            logger.LogDebug($"Previous file is {otherFile} current file is {fileName} total Length {TotalTime} {processedAlready}");
+            ISampleProvider sampleProvider;
 
-                if (reader.WaveFormat.SampleRate != SAMPLE_RATE)
+            if (reader.WaveFormat.SampleRate != SAMPLE_RATE)
+            {
+                sampleProvider = new WdlResamplingSampleProvider(reader.ToSampleProvider(), SAMPLE_RATE).ToMono();
+            }
+            else
+            {
+                sampleProvider = reader.ToSampleProvider();
+            }
+            var array = new float[CountSamples(TotalTime)];
+            var read = sampleProvider.Read(array, 0, array.Length);
+            var speachResult = vad.GetSpeechTimestamps(array, min_silence_duration_ms: 400, threshold: 0.3f, min_speech_duration_ms: 300);
+            if (speachResult.Count > 0 && IsNotTalkingActively(array, speachResult))
+            {
+                lastVadFound = speachResult.Count;
+                processedAlready += TimeSpan.FromSeconds((float)speachResult.Last().End / SAMPLE_RATE);
+                Console.WriteLine($"Speech detected: {speachResult.Count} {JsonConvert.SerializeObject(speachResult)} {fileStream.Length} {processedAlready}");
+                await SendBack(webSocket, "speaking", "true");
+
+                Console.WriteLine("Speech over");
+                // reset stream
+                var audioSpeech = VadHelper.GetSpeechSamples(array, speachResult);
+
+                var batchfile = Path.Combine(tempFolder, $"batch_{indexInStream++}.wav");
+
+                using var fileWriter = new WaveFileWriter(batchfile, new WaveFormat(16000, 1));
+                foreach (var sample in audioSpeech)
                 {
-                    sampleProvider = new WdlResamplingSampleProvider(reader.ToSampleProvider(), SAMPLE_RATE).ToMono();
+                    fileWriter.WriteSample(sample);
                 }
-                else
+                fileWriter.Flush();
+                Console.WriteLine("Processing audio total time: " + TotalTime);
+
+                _ = Task.Run(async () =>
                 {
-                    sampleProvider = reader.ToSampleProvider();
-                }
-                var array = new float[CountSamples(TotalTime)];
-                var read = sampleProvider.Read(array, 0, array.Length);
-                var speachResult = vad.GetSpeechTimestamps(array, min_silence_duration_ms: 400, threshold: 0.3f, min_speech_duration_ms: 400);
-                if (speachResult.Count > 0 && IsNotTalkingActively(array, speachResult))
-                {
-                    lastVadFound = speachResult.Count;
-                    processedAlready = TimeSpan.FromSeconds((float)speachResult.Last().End / SAMPLE_RATE);
-                    Console.WriteLine($"Speech detected: {speachResult.Count} {JsonConvert.SerializeObject(speachResult)} {fileStream.Length}");
-                    await SendBack(webSocket, "speaking", "true");
-
-                    Console.WriteLine("Speech over");
-                    // reset stream
-                    var audioSpeech = VadHelper.GetSpeechSamples(array, speachResult);
-
-                    var batchfile = Path.Combine(tempFolder, $"batch_{indexInStream++}.wav");
-
-                    using var fileWriter = new WaveFileWriter(batchfile, new WaveFormat(16000, 1));
-                    foreach (var sample in audioSpeech)
+                    try
                     {
-                        fileWriter.WriteSample(sample);
+                        using FileStream reduced = await ProcessAudio(webSocket, batchfile);
                     }
-                    fileWriter.Flush();
-                    Console.WriteLine("Processing audio total time: " + TotalTime);
-
-                    _ = Task.Run(async () =>
+                    catch (System.Exception e)
                     {
-                        try
-                        {
-                            using FileStream reduced = await ProcessAudio(webSocket, batchfile);
-                        }
-                        catch (System.Exception e)
-                        {
-                            logger.LogError(e, "Error while processing audio");
-                        }
-
-                    });
-                }
-                if (speachResult.Count == 0 || speachResult.Last().End < array.Length - SAMPLE_RATE * 2)
-                {
-                    await SendBack(webSocket, "speaking", "false");
-                    if (fileStream.Length > 1024 * 20)
-                    {
-                        logger.LogWarning("File too large, switching file {size}, {filename}, {buffer}", fileStream.Length, fileName, header.Count);
-                        fileStream.Flush();
-                        fileStream.Dispose();
-
-                        names.Forward();
-                        fileName = names.GetCurrent();
-                        File.Delete(fileName);
-                        fileStream = new FileStream(fileName, FileMode.Create);
-                        fileStream.Write(header.ToArray());
-                        processedAlready -= TimeSpan.FromSeconds(25);
-                        if (processedAlready < TimeSpan.Zero)
-                            processedAlready = TimeSpan.Zero;
+                        logger.LogError(e, "Error while processing audio");
                     }
+
+                });
+            }
+            const int targetCount = 12;
+            if (batchcount % targetCount == targetCount - 2)
+                tryCutOff = true;
+            if (speachResult.Count == 0 || speachResult.Last().End < array.Length - SAMPLE_RATE * 2)
+            {
+                await SendBack(webSocket, "speaking", "false");
+                if (tryCutOff)
+                {
+                    logger.LogDebug("File too large, switching file {size}, {filename}, {processed}", fileStream.Length, fileName, processedAlready);
+                    fileStream.Flush();
+                    fileStream.Dispose();
+                    var otherExisted = File.Exists(otherFile);
+                    names.Forward();
+                    fileName = names.GetCurrent();
+                    File.Delete(fileName);
+                    fileStream = new FileStream(fileName, FileMode.Create);
+                    fileStream.Write(header.ToArray());
+                    if (processedAlready > TimeSpan.FromSeconds(targetCount * 0.480 * 3))
+                    {
+                        extraCuttof[fileName] = processedAlready - TimeSpan.FromSeconds(targetCount * 0.480);
+                        if (extraCuttof.Remove(otherFile, out var time))
+                        {
+                            processedAlready -= time;
+                            logger.LogWarning("Cutting off {processed} to be at {already}", time, processedAlready);
+                        }
+                    }
+                    if (otherExisted)
+                        processedAlready -= TimeSpan.FromSeconds(targetCount * 0.480);
+                    if (processedAlready < TimeSpan.Zero)
+                        processedAlready = TimeSpan.Zero;
+                    tryCutOff = false;
                 }
             }
         } while (!result.CloseStatus.HasValue);
         fileStream.Dispose();
         Console.WriteLine("Audio recording saved");
     }
+
 
     private static async Task SendBack(WebSocket webSocket, string type, string content)
     {
