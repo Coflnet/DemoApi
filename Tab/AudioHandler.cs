@@ -168,7 +168,7 @@ internal class AudioHandler
                         logger.LogError(e, "Error while processing audio");
                     }
 
-                });
+                }).ConfigureAwait(false);
             }
             const int targetCount = 12;
             if (batchcount % targetCount == targetCount - 2)
