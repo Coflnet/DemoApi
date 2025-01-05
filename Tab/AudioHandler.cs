@@ -12,10 +12,12 @@ internal class AudioHandler
     private Coflnet.Whisper.Api.EndpointsApi apiClient;
     private ILogger<AudioHandler> logger;
     const int SAMPLE_RATE = 16000;
+    string language;
 
     public AudioHandler(HttpContext context)
     {
         this.context = context;
+        language = context.Request.Query["language"].FirstOrDefault()?.Split('_').First() ?? "en";
         this.apiClient = context.RequestServices.GetRequiredService<Coflnet.Whisper.Api.EndpointsApi>();
         this.logger = context.RequestServices.GetRequiredService<ILogger<AudioHandler>>();
     }
@@ -261,8 +263,8 @@ internal class AudioHandler
             .OutputToFile(mp3)
             .ProcessSynchronously();
         using var reduced = File.OpenRead(mp3);
-        logger.LogInformation($"Reduced file size: {reduced.Length} sending to recognition");
-        var speachText = await apiClient.AsrAsrPostWithHttpInfoAsync(reduced, true, "transcribe", null, null, false, false, "txt");
+        logger.LogInformation($"Reduced file size: {reduced.Length} sending to recognition, {language}");
+        var speachText = await apiClient.AsrAsrPostWithHttpInfoAsync(reduced, true, "transcribe", language, null, false, false, "txt");
         var content = speachText.RawContent;
         Console.WriteLine($"Speech to text: {content}");
         if (!string.IsNullOrWhiteSpace(content))

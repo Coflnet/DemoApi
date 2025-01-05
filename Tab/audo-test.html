@@ -4,7 +4,7 @@
     <title>Audio Test</title>
     <script src="recorder.min.js"></script>
     <script>
-        const ws = new WebSocket('ws://192.168.2.177:5159/api/audio');
+        const ws = new WebSocket('ws://192.168.2.177:5159/api/audio?language=de');
 
         // WebSocket events
         ws.onopen = () => console.log('WebSocket connected');
