@@ -81,15 +81,29 @@ internal class AudioHandler
         Dictionary<string, TimeSpan> extraCuttof = new();
         var processedAlready = TimeSpan.Zero;
         var tryCutOff = false;
+        var lastReceived = DateTime.Now;
         do
         {
-            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            try
+            {
+                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), new CancellationTokenSource(2000).Token);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.LogWarning("Timeout while waiting for audio, checking processing");
+                result = new WebSocketReceiveResult(0, WebSocketMessageType.Binary, true, null, null);
+            }
+            catch (System.Exception)
+            {
+                throw;
+            }
             var isTextFrame = result.MessageType == WebSocketMessageType.Text;
             if (isTextFrame)
             {
                 logger.LogDebug("Text frame received");
                 continue;
             }
+            lastReceived = DateTime.Now;
             fileStream.Write(buffer, 0, result.Count);
 
 
