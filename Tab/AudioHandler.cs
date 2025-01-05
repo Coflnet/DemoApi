@@ -150,7 +150,7 @@ internal class AudioHandler
             var array = new float[CountSamples(TotalTime)];
             var read = sampleProvider.Read(array, 0, array.Length);
             var speachResult = vad.GetSpeechTimestamps(array, min_silence_duration_ms: 400, threshold: 0.3f, min_speech_duration_ms: 300);
-            if (speachResult.Count > 0 && IsNotTalkingActively(array, speachResult))
+            if (speachResult.Count > 0 && (IsNotTalkingActively(array, speachResult) || ClientDidNotSendAnyAudio(result)))
             {
                 lastVadFound = speachResult.Count;
                 processedAlready += TimeSpan.FromSeconds((float)speachResult.Last().End / SAMPLE_RATE);
@@ -222,6 +222,10 @@ internal class AudioHandler
         Console.WriteLine("Audio recording saved");
     }
 
+    private static bool ClientDidNotSendAnyAudio(WebSocketReceiveResult result)
+    {
+        return result.Count == 0;
+    }
 
     private static async Task SendBack(WebSocket webSocket, string type, string content)
     {
