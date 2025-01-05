@@ -53,6 +53,18 @@ internal class AudioHandler
 
     internal async Task Handle()
     {
+        try
+        {
+            await HandleInternal();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error while handling audio");
+        }
+    }
+
+    private async Task HandleInternal()
+    {
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
         Console.WriteLine("WebSocket connection established");
 
@@ -72,7 +84,7 @@ internal class AudioHandler
             Directory.CreateDirectory(tempFolder);
         }
 
-        WebSocketReceiveResult result;
+        WebSocketReceiveResult result = null!;
         var vad = new Vad();
         var batchcount = 0;
         var lastVadFound = 0;
@@ -81,29 +93,16 @@ internal class AudioHandler
         Dictionary<string, TimeSpan> extraCuttof = new();
         var processedAlready = TimeSpan.Zero;
         var tryCutOff = false;
-        var lastReceived = DateTime.Now;
+        var lastReceived = DateTime.UtcNow;
         do
         {
-            try
-            {
-                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), new CancellationTokenSource(2000).Token);
-            }
-            catch (OperationCanceledException)
-            {
-                logger.LogWarning("Timeout while waiting for audio, checking processing");
-                result = new WebSocketReceiveResult(0, WebSocketMessageType.Binary, true, null, null);
-            }
-            catch (System.Exception)
-            {
-                throw;
-            }
+            result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
             var isTextFrame = result.MessageType == WebSocketMessageType.Text;
             if (isTextFrame)
             {
                 logger.LogDebug("Text frame received");
                 continue;
             }
-            lastReceived = DateTime.Now;
             fileStream.Write(buffer, 0, result.Count);
 
 

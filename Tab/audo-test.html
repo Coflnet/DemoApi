@@ -52,6 +52,9 @@
                     });
 
                     recorder.ondataavailable = (typedArray) => {
+                        if(typedArray.length < 700 && typedArray.length > 300) {
+                          //   return;
+                        }
                         if (ws.readyState === WebSocket.OPEN) {
                             console.log('Sending Opus packet:', typedArray.length, new Date().toISOString());
                             ws.send(typedArray.buffer); // Send Opus packet to server
