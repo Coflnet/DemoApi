@@ -5,21 +5,26 @@ using SileroVad;
 using NAudio.Wave.SampleProviders;
 using System.Text;
 using Newtonsoft.Json;
+using RestSharp;
 
 internal class AudioHandler
 {
     private HttpContext context;
     private Coflnet.Whisper.Api.EndpointsApi apiClient;
     private ILogger<AudioHandler> logger;
+    private IConfiguration configuration;
     const int SAMPLE_RATE = 16000;
-    string language;
+    private string language;
+    private string sessionId;
 
     public AudioHandler(HttpContext context)
     {
         this.context = context;
         language = context.Request.Query["language"].FirstOrDefault()?.Split('_').First() ?? "en";
+        sessionId = context.Request.Query["session"].FirstOrDefault() ?? Guid.NewGuid().ToString();
         this.apiClient = context.RequestServices.GetRequiredService<Coflnet.Whisper.Api.EndpointsApi>();
         this.logger = context.RequestServices.GetRequiredService<ILogger<AudioHandler>>();
+        this.configuration = context.RequestServices.GetRequiredService<IConfiguration>();
     }
 
     private class NameHandler
@@ -74,7 +79,7 @@ internal class AudioHandler
         // var fileNameA = "a.webm";
         //  var fileNameB = "b.webm";
         var remoteIpProxiedHeader = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault() ?? context.Connection.RemoteIpAddress.ToString();
-        var tempFolder = Path.Combine(Path.GetTempPath(), "audio" + remoteIpProxiedHeader);
+        var tempFolder = Path.Combine(Path.GetTempPath(), "audio" + sessionId);
         if (Directory.Exists(tempFolder))
             Directory.Delete(tempFolder, true);
         Directory.CreateDirectory(tempFolder);
@@ -176,7 +181,7 @@ internal class AudioHandler
                 {
                     try
                     {
-                        using FileStream reduced = await ProcessAudio(webSocket, batchfile);
+                        await ProcessAudio(webSocket, batchfile);
                     }
                     catch (System.Exception e)
                     {
@@ -256,20 +261,17 @@ internal class AudioHandler
         return isNotActive;
     }
 
-    private async Task<FileStream> ProcessAudio(WebSocket webSocket, string batchfile)
+    private async Task ProcessAudio(WebSocket webSocket, string batchfile)
     {
-        var mp3 = batchfile.Replace(".wav", ".mp3");
-        FFMpegArguments.FromFileInput(batchfile)
-            .OutputToFile(mp3)
-            .ProcessSynchronously();
-        using var reduced = File.OpenRead(mp3);
-        logger.LogInformation($"Reduced file size: {reduced.Length} sending to recognition, {language}");
-        var speachText = await apiClient.AsrAsrPostWithHttpInfoAsync(reduced, true, "transcribe", language, null, false, false, "txt");
-        var content = speachText.RawContent;
-        Console.WriteLine($"Speech to text: {content}");
-        if (!string.IsNullOrWhiteSpace(content))
-            await SendBack(webSocket, "transcript", content);
-        return reduced;
+        var restClient = new RestClient($"https://api.cloudflare.com/client/v4/accounts/{configuration["CLOUDFLARE_ACCOUNT"]}/ai/run/@cf/openai/whisper-large-v3-turbo");
+        var request = new RestRequest("", Method.Post);
+        request.AddHeader("Authorization", $"Bearer {configuration["CLOUDFLARE_API_KEY"]}");
+        request.AddJsonBody(new { audio = Convert.ToBase64String(File.ReadAllBytes(batchfile)), language = language });
+        var response = await restClient.ExecuteAsync(request);
+        var parsed = JsonConvert.DeserializeObject<RecogintionResponse>(response.Content);
+        var fullText = parsed.Segments.Select(s => s.Text).Aggregate((a, b) => a + "\n" + b);
+        logger.LogInformation($"Received response: {fullText}");
+        await SendBack(webSocket, "transcript", fullText);
     }
 
     static int CountSamples(TimeSpan time)
@@ -282,4 +284,24 @@ internal class AudioHandler
     {
         return (int)(time.TotalSeconds * (double)waveFormat.SampleRate) * waveFormat.Channels;
     }
+}
+
+public class RecogintionResponse
+{
+    public List<Segment> Segments { get; set; }
+}
+
+public class Segment
+{
+    public string Text { get; set; }
+    public double Start { get; set; }
+    public double End { get; set; }
+    public List<Words> Words { get; set; }
+}
+
+public class Words
+{
+    public string Word { get; set; }
+    public double Start { get; set; }
+    public double End { get; set; }
 }
