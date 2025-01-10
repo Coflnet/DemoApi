@@ -269,12 +269,12 @@ internal class AudioHandler
         request.AddJsonBody(new { audio = Convert.ToBase64String(File.ReadAllBytes(batchfile)), language = language });
         var response = await restClient.ExecuteAsync(request);
         var parsed = JsonConvert.DeserializeObject<RecogintionResponse>(response.Content);
-        if (parsed == null)
+        if (parsed?.Result?.Segments == null)
         {
             logger.LogError("Error while parsing response: {code} {response}", response.StatusCode, response.Content);
             return;
         }
-        var fullText = parsed.Segments.Select(s => s.Text).Aggregate((a, b) => a + "\n" + b);
+        var fullText = string.Join("\n", parsed.Result.Segments.Select(r => r?.Text).Where(r => !string.IsNullOrWhiteSpace(r)));
         logger.LogInformation($"Received response: {fullText}");
         await SendBack(webSocket, "transcript", fullText);
     }
@@ -292,6 +292,12 @@ internal class AudioHandler
 }
 
 public class RecogintionResponse
+{
+    public Result Result { get; set; }
+    public bool Success { get; set; }
+}
+
+public class Result
 {
     public List<Segment> Segments { get; set; }
 }
