@@ -269,6 +269,11 @@ internal class AudioHandler
         request.AddJsonBody(new { audio = Convert.ToBase64String(File.ReadAllBytes(batchfile)), language = language });
         var response = await restClient.ExecuteAsync(request);
         var parsed = JsonConvert.DeserializeObject<RecogintionResponse>(response.Content);
+        if (parsed == null)
+        {
+            logger.LogError("Error while parsing response: {code} {response}", response.StatusCode, response.Content);
+            return;
+        }
         var fullText = parsed.Segments.Select(s => s.Text).Aggregate((a, b) => a + "\n" + b);
         logger.LogInformation($"Received response: {fullText}");
         await SendBack(webSocket, "transcript", fullText);
