@@ -65,6 +65,6 @@ public class SessionHandler
 
     public class SessionState
     {
-        public List<string> Texts { get; set; }
+        public List<string> Texts { get; set; } = new();
     }
 }
