@@ -32,6 +32,7 @@ builder.Services.AddSingleton<IIsCompanyService, IsCompanyService>();
 builder.Services.AddSingleton<BrandMappingService>();
 builder.Services.AddSingleton<SurveryGenerator>();
 builder.Services.AddSingleton<Coflnet.Whisper.Api.EndpointsApi>(ci => new(builder.Configuration["WhisperAsrWebservice"]));
+builder.Services.AddSingleton<SessionHandler>();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddOpenAIService(settings => { settings.ApiKey = builder.Configuration["OpenAiApiKey"]; });
 builder.Services.AddControllers().AddJsonOptions(o =>

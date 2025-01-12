@@ -18,10 +18,10 @@ public class AIPromtService
         this.logger = logger;
     }
 
-    public async Task<Dictionary<string, string>[]> PromptAi(string text, Dictionary<string, PropertyInfo> columnWithDescription, List<string> requiredColumns)
+    public async Task<Response> PromptAi(string text, Dictionary<string, PropertyInfo> columnWithDescription, List<string> requiredColumns)
     {
         if (IsTooShortToNotHallucinate(text))
-            return Array.Empty<Dictionary<string, string>>();
+            return new();
         var response = await openAIService.ChatCompletion.CreateCompletion(new OpenAI.ObjectModels.RequestModels.ChatCompletionCreateRequest()
         {
             Model = "gpt-4o-mini",
@@ -61,7 +61,11 @@ public class AIPromtService
                                 null
                             )
                         )
-                } }, new List<string> { "lines" },
+                    },
+                    {
+                        "isComplete", PropertyDefinition.DefineBoolean("Are all required columns filled?")
+                    }
+                 }, new List<string> { "lines" },
                 false,
                 "Response containing one line per entry",
                 null)
@@ -71,12 +75,12 @@ public class AIPromtService
         if (response.Successful)
         {
             Console.WriteLine(response.Choices.First().Message.Content);
-            return JsonConvert.DeserializeObject<Response>(response.Choices.First().Message.Content).Lines;
+            return JsonConvert.DeserializeObject<Response>(response.Choices.First().Message.Content);
         }
         else
         {
             logger.LogError("Failed to get completion from OpenAI {error}", JsonConvert.SerializeObject(response.Error));
-            return Array.Empty<Dictionary<string, string>>();
+            return new ();
         }
 
     }
@@ -88,6 +92,7 @@ public class AIPromtService
 
     public class Response
     {
-        public Dictionary<string, string>[] Lines { get; set; }
+        public Dictionary<string, string>[] Lines { get; set; } = Array.Empty<Dictionary<string, string>>();
+        public bool IsComplete { get; set; }
     }
 }
