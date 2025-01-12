@@ -26,7 +26,7 @@ public class ExcelController : ControllerBase
     }
 
     [HttpGet("brand")]
-    public async Task<IActionResult> Get([FromServices] IIsCompanyService isCompanyService, string company)
+    public async Task<IActionResult> GetBrands([FromServices] IIsCompanyService isCompanyService, string company)
     {
         return Ok(await isCompanyService.CheckBatch(new List<string> { company }));
     }
@@ -70,7 +70,7 @@ public class ExcelController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<MapingResult> Get()
+    public async Task<MapingResult> GetMapping()
     {
         var raw = JsonConvert.DeserializeObject<List<(string brand, string product)>>(
             System.IO.File.ReadAllText("output.json"));
