@@ -56,6 +56,7 @@ public class SessionHandler
         if (parsed?.Result?.Segments == null)
         {
             logger.LogError("Error while parsing response: {code} {response}", response.StatusCode, response.Content);
+            logger.LogInformation("Sent request: {base64}", base64);
             return "";
         }
         var fullText = string.Join("\n", parsed.Result.Segments.Select(r => r?.Text).Where(r => !string.IsNullOrWhiteSpace(r)));
