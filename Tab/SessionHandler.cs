@@ -42,7 +42,7 @@ public class SessionHandler
         return new() { ColumnWithText = response.Lines, IsComplete = response.IsComplete, Text = fullText };
     }
 
-    public async Task<string> GetTextFromAudio(string base64, string? language = null)
+    public async Task<string> GetTextFromAudio(string base64, string? languageHint = null)
     {
         var restClient = new RestClient($"https://api.cloudflare.com/client/v4/accounts/{configuration["CLOUDFLARE_ACCOUNT"]}/ai/run/@cf/openai/whisper-large-v3-turbo");
         var request = new RestRequest("", Method.Post);
@@ -51,6 +51,7 @@ public class SessionHandler
         {
             base64 = base64.Substring("data:audio/wav;base64,".Length);
         }
+        var language = languageHint?.Split('_').First().ToLower();
         if (language == null)
             request.AddJsonBody(new { audio = base64 });
         else
@@ -59,10 +60,11 @@ public class SessionHandler
         var parsed = JsonConvert.DeserializeObject<RecogintionResponse>(response.Content);
         if (parsed?.Result?.Segments == null)
         {
-            logger.LogError("Error while parsing response: {code} {response}", response.StatusCode, response.Content);
+            logger.LogError("Error while parsing response: {code} {response} for {language}", response.StatusCode, response.Content, language);
             logger.LogInformation("Sent request: {base64}", base64.Truncate(100));
             return "";
         }
+        Console.WriteLine(base64);
         var fullText = string.Join("\n", parsed.Result.Segments.Select(r => r?.Text).Where(r => !string.IsNullOrWhiteSpace(r)));
         logger.LogInformation($"Received response: {fullText}");
         return fullText;
