@@ -30,6 +30,15 @@ public class TabController : ControllerBase
     {
         return await sessionHandler.Recognize(request);
     }
+
+    [HttpPost]
+    [Route("test")]
+    public async Task<RecognitionResponse> Test()
+    {
+        var data = System.IO.File.ReadAllBytes("audio.wav");
+        var text = await sessionHandler.GetTextFromAudio(Convert.ToBase64String(data), "de");
+        return new() { Text = text, IsComplete = true };
+    }
 }
 
 public class RecognitionRequest
