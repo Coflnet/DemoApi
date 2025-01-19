@@ -35,15 +35,15 @@ public class TabController : ControllerBase
     [Route("test")]
     public async Task<RecognitionResponse> Test()
     {
-        var data = System.IO.File.ReadAllBytes("audio.wav");
-        var text = await sessionHandler.GetTextFromAudio(Convert.ToBase64String(data), "de");
+        var data = System.IO.File.ReadAllBytes("sample-bayrisch.mp3");
+        var text = await sessionHandler.GetTextFromAudio(Convert.ToBase64String(data), "DE_de");
         return new() { Text = text, IsComplete = true };
     }
 }
 
 public class RecognitionRequest
 {
-    public string Base64Opus { get; set; }
+    public string? Base64Opus { get; set; }
     public string Language { get; set; }
     public string SessionId { get; set; }
     public Dictionary<string, PropertyInfo> ColumnWithDescription { get; set; }
