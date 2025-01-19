@@ -39,6 +39,7 @@ public class SessionHandler
         {
             session.Texts.Clear();
         }
+        logger.LogInformation($"Recognized: {JsonConvert.SerializeObject(response.Lines)} for definition {JsonConvert.SerializeObject(request.ColumnWithDescription)}");
         return new() { ColumnWithText = response.Lines, IsComplete = response.IsComplete, Text = fullText };
     }
 
@@ -64,7 +65,6 @@ public class SessionHandler
             logger.LogInformation("Sent request: {base64}", base64.Truncate(100));
             return "";
         }
-        Console.WriteLine(base64);
         var fullText = string.Join("\n", parsed.Result.Segments.Select(r => r?.Text).Where(r => !string.IsNullOrWhiteSpace(r)));
         logger.LogInformation($"Received response: {fullText}");
         return fullText;
