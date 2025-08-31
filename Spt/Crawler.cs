@@ -349,31 +349,53 @@ public class BundesligaCrawler
         var prompt = $@"
 Analyze the following football match live ticker text for the game between {match.HomeTeam} and {match.AwayTeam}.
 
-Extract ONLY the following specific event types and return them as a JSON array:
+Extract ALL relevant football events and return them as a JSON array. Include these event types:
 
-1. **Corners**: Who took them, when (minute), and any notable details
-2. **Free kicks**: Who took them, key action, and notes  
-3. **Penalties**: Who took them and whether they scored or missed
+1. **Goals**: Who scored, minute, how it was scored, goal details
+2. **Corners**: Who took them, when (minute), and any notable details
+3. **Free kicks**: Who took them, key action, and notes  
+4. **Penalties**: Who took them and whether they scored or missed
+5. **Yellow cards**: Who received them, minute, reason if mentioned
+6. **Red cards**: Who received them, minute, reason (second yellow, direct red, etc.)
+7. **Substitutions**: Who came on/off, minute, tactical reason if mentioned
+8. **Saves**: Goalkeeper saves, especially notable ones
+9. **Shots**: Notable shots on/off target, blocked shots
+10. **Fouls**: Notable fouls, especially those leading to cards or free kicks
+11. **Offside**: Offside calls, especially those that prevented goals
 
 For each event, use this exact JSON structure:
 {{
-  ""eventType"": ""corner"" | ""freekick"" | ""penalty"",
+  ""eventType"": ""goal"" | ""corner"" | ""freekick"" | ""penalty"" | ""yellow_card"" | ""red_card"" | ""substitution"" | ""save"" | ""shot"" | ""foul"" | ""offside"",
   ""minute"": number,
-  ""player"": ""player name"",
+  ""player"": ""primary player name"",
+  ""secondaryPlayer"": ""secondary player name (for substitutions: player coming off, for assists, etc.)"",
   ""team"": ""team name"",
   ""action"": ""description of what happened"",
-  ""outcome"": ""scored"" | ""missed"" | ""saved"" | ""deflected"" | ""other"",
-  ""notes"": ""additional relevant details""
+  ""outcome"": ""scored"" | ""missed"" | ""saved"" | ""blocked"" | ""deflected"" | ""on_target"" | ""off_target"" | ""other"",
+  ""details"": {{
+    ""position"": ""left_corner"" | ""right_corner"" | ""center"" | ""top_left"" | ""top_right"" | ""bottom_left"" | ""bottom_right"" | ""outside_post"" | ""crossbar"" | ""other"",
+    ""distance"": ""distance from goal in meters (if mentioned)"",
+    ""shotType"": ""header"" | ""left_foot"" | ""right_foot"" | ""volley"" | ""half_volley"" | ""chip"" | ""lob"" | ""tap_in"" | ""other"",
+    ""assistPlayer"": ""player who assisted (for goals)"",
+    ""cardReason"": ""reason for card (foul, dissent, time_wasting, etc.)"",
+    ""substitutionReason"": ""tactical"" | ""injury"" | ""performance"" | ""time_wasting"" | ""other"",
+    ""bodyPart"": ""head"" | ""left_foot"" | ""right_foot"" | ""chest"" | ""other""
+  }},
+  ""notes"": ""additional relevant details, context, or notable circumstances""
 }}
 
-Rules:
-- Only extract corners, free kicks, and penalties
-- Ignore goals, substitutions, cards, and other events
-- Be precise with minute timing
-- Include player names when mentioned
-- For penalties: outcome should be ""scored"" or ""missed"" or ""saved""
-- For corners: note if they led to anything significant
-- For free kicks: note the outcome (shot, cross, etc.)
+Detailed extraction rules:
+- **Goals**: Include shot placement (corners of goal), distance if mentioned, type of shot, assist details
+- **Penalties**: Note if saved, direction of shot, keeper's action
+- **Cards**: Always include reason if mentioned (foul type, dissent, etc.)
+- **Substitutions**: Note if tactical, injury-related, or performance-based
+- **Shots**: Include target accuracy, save details, shot type
+- **Saves**: Note difficulty, shot type saved, body part used
+- Be precise with minute timing including added time (e.g., 90+3)
+- Extract player names accurately
+- For goals, try to determine shot placement in goal (left/right corner, center, etc.)
+- Note distance from goal for shots when mentioned
+- Include assist information for goals when available
 
 Live ticker text:
 {liveTickerText}
@@ -388,7 +410,7 @@ Return ONLY a valid JSON array, no additional text or explanations.
                 Model = Models.Gpt_4o_mini,
                 Messages = new List<ChatMessage>()
                 {
-                    ChatMessage.FromSystem("You are a football event extractor. Extract only corners, free kicks, and penalties from live ticker text and return as JSON array."),
+                    ChatMessage.FromSystem("You are a comprehensive football event extractor. Extract ALL relevant match events including goals, cards, substitutions, shots, saves, fouls, corners, free kicks, penalties, and offsides. Return detailed information as structured JSON with nested details object for each event."),
                     ChatMessage.FromUser(prompt)
                 }
             });
@@ -452,8 +474,24 @@ public class BundesligaMatchdayResult
             TotalFreeKicks = allEvents.Count(e => e.EventType == "freekick"),
             TotalPenalties = allEvents.Count(e => e.EventType == "penalty"),
             PenaltiesScored = allEvents.Count(e => e.EventType == "penalty" && e.Outcome == "scored"),
-            PenaltiesMissed = allEvents.Count(e => e.EventType == "penalty" && e.Outcome == "missed"),
-            TotalGoals = Matches.Sum(m => (m.HomeScore ?? 0) + (m.AwayScore ?? 0))
+            PenaltiesMissed = allEvents.Count(e => e.EventType == "penalty" && (e.Outcome == "missed" || e.Outcome == "saved")),
+            TotalGoals = allEvents.Count(e => e.EventType == "goal"),
+            TotalYellowCards = allEvents.Count(e => e.EventType == "yellow_card"),
+            TotalRedCards = allEvents.Count(e => e.EventType == "red_card"),
+            TotalSubstitutions = allEvents.Count(e => e.EventType == "substitution"),
+            TotalShots = allEvents.Count(e => e.EventType == "shot"),
+            ShotsOnTarget = allEvents.Count(e => e.EventType == "shot" && e.Outcome == "on_target"),
+            ShotsOffTarget = allEvents.Count(e => e.EventType == "shot" && e.Outcome == "off_target"),
+            TotalSaves = allEvents.Count(e => e.EventType == "save"),
+            TotalFouls = allEvents.Count(e => e.EventType == "foul"),
+            TotalOffsides = allEvents.Count(e => e.EventType == "offside"),
+            
+            // Goal analysis
+            GoalsFromCorners = allEvents.Count(e => e.EventType == "goal" && e.Notes.ToLower().Contains("corner")),
+            GoalsFromPenalties = allEvents.Count(e => e.EventType == "goal" && e.Notes.ToLower().Contains("penalty")),
+            GoalsFromFreeKicks = allEvents.Count(e => e.EventType == "goal" && e.Notes.ToLower().Contains("free kick")),
+            HeaderGoals = allEvents.Count(e => e.EventType == "goal" && (e.Details.ShotType == "header" || e.Details.BodyPart == "head")),
+            FootGoals = allEvents.Count(e => e.EventType == "goal" && (e.Details.ShotType.Contains("foot") || e.Details.BodyPart.Contains("foot")))
         };
     }
 }
@@ -477,13 +515,26 @@ public class MatchResult
 
 public class MatchEvent
 {
-    public string EventType { get; set; } = string.Empty; // corner, freekick, penalty
+    public string EventType { get; set; } = string.Empty; // goal, corner, freekick, penalty, yellow_card, red_card, substitution, save, shot, foul, offside
     public int Minute { get; set; }
     public string Player { get; set; } = string.Empty;
+    public string SecondaryPlayer { get; set; } = string.Empty; // For substitutions, assists, etc.
     public string Team { get; set; } = string.Empty;
     public string Action { get; set; } = string.Empty;
-    public string Outcome { get; set; } = string.Empty; // scored, missed, saved, deflected, other
+    public string Outcome { get; set; } = string.Empty; // scored, missed, saved, blocked, deflected, on_target, off_target, other
+    public EventDetails Details { get; set; } = new();
     public string Notes { get; set; } = string.Empty;
+}
+
+public class EventDetails
+{
+    public string Position { get; set; } = string.Empty; // left_corner, right_corner, center, top_left, top_right, bottom_left, bottom_right, outside_post, crossbar, other
+    public string Distance { get; set; } = string.Empty; // Distance from goal in meters
+    public string ShotType { get; set; } = string.Empty; // header, left_foot, right_foot, volley, half_volley, chip, lob, tap_in, other
+    public string AssistPlayer { get; set; } = string.Empty; // Player who assisted (for goals)
+    public string CardReason { get; set; } = string.Empty; // Reason for card (foul, dissent, time_wasting, etc.)
+    public string SubstitutionReason { get; set; } = string.Empty; // tactical, injury, performance, time_wasting, other
+    public string BodyPart { get; set; } = string.Empty; // head, left_foot, right_foot, chest, other
 }
 
 public class MatchStatistics
@@ -494,4 +545,20 @@ public class MatchStatistics
     public int PenaltiesScored { get; set; }
     public int PenaltiesMissed { get; set; }
     public int TotalGoals { get; set; }
+    public int TotalYellowCards { get; set; }
+    public int TotalRedCards { get; set; }
+    public int TotalSubstitutions { get; set; }
+    public int TotalShots { get; set; }
+    public int ShotsOnTarget { get; set; }
+    public int ShotsOffTarget { get; set; }
+    public int TotalSaves { get; set; }
+    public int TotalFouls { get; set; }
+    public int TotalOffsides { get; set; }
+    
+    // Goal analysis
+    public int GoalsFromCorners { get; set; }
+    public int GoalsFromPenalties { get; set; }
+    public int GoalsFromFreeKicks { get; set; }
+    public int HeaderGoals { get; set; }
+    public int FootGoals { get; set; }
 }

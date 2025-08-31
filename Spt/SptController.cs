@@ -66,4 +66,80 @@ public class SptController : ControllerBase
             return StatusCode(500, "An error occurred while processing the request");
         }
     }
+
+    /// <summary>
+    /// Gets all goals from the latest matchday with detailed information
+    /// </summary>
+    /// <returns>List of goal events with comprehensive details</returns>
+    [HttpGet("goals")]
+    public async Task<ActionResult<List<MatchEvent>>> GetGoals()
+    {
+        try
+        {
+            var result = await crawler.CrawlLatestMatchdayAsync();
+            var goals = result.Matches
+                .SelectMany(m => m.Events)
+                .Where(e => e.EventType == "goal")
+                .OrderBy(e => e.Minute)
+                .ToList();
+            
+            return Ok(goals);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occurred while getting goals");
+            return StatusCode(500, "An error occurred while processing the request");
+        }
+    }
+
+    /// <summary>
+    /// Gets all cards (yellow and red) from the latest matchday
+    /// </summary>
+    /// <returns>List of card events</returns>
+    [HttpGet("cards")]
+    public async Task<ActionResult<List<MatchEvent>>> GetCards()
+    {
+        try
+        {
+            var result = await crawler.CrawlLatestMatchdayAsync();
+            var cards = result.Matches
+                .SelectMany(m => m.Events)
+                .Where(e => e.EventType == "yellow_card" || e.EventType == "red_card")
+                .OrderBy(e => e.Minute)
+                .ToList();
+            
+            return Ok(cards);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occurred while getting cards");
+            return StatusCode(500, "An error occurred while processing the request");
+        }
+    }
+
+    /// <summary>
+    /// Gets events by specific type from the latest matchday
+    /// </summary>
+    /// <param name="eventType">Type of event to filter by</param>
+    /// <returns>List of events of the specified type</returns>
+    [HttpGet("events/{eventType}")]
+    public async Task<ActionResult<List<MatchEvent>>> GetEventsByType(string eventType)
+    {
+        try
+        {
+            var result = await crawler.CrawlLatestMatchdayAsync();
+            var events = result.Matches
+                .SelectMany(m => m.Events)
+                .Where(e => e.EventType.Equals(eventType, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(e => e.Minute)
+                .ToList();
+            
+            return Ok(events);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, $"Error occurred while getting events of type {eventType}");
+            return StatusCode(500, "An error occurred while processing the request");
+        }
+    }
 }
