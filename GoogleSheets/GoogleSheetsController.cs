@@ -344,13 +344,9 @@ public class GoogleSheetsController : ControllerBase
 
     private Task<string> GenerateMatchesCsvAsync()
     {
-        // This would integrate with your existing Bundesliga crawler
-        // For now, return a sample structure
-        var csv = new StringBuilder();
-        csv.AppendLine("Date,Home Team,Away Team,Home Score,Away Score,Status,Matchday");
-        csv.AppendLine("2024-12-20,Bayern München,Borussia Dortmund,3,1,Finished,15");
-        csv.AppendLine("2024-12-20,RB Leipzig,Eintracht Frankfurt,2,0,Finished,15");
-        return Task.FromResult(csv.ToString());
+        // TODO: Integrate with the actual Bundesliga crawler to generate real match data CSV.
+        // Placeholder implementation. Throwing NotImplementedException to prevent accidental use.
+        throw new NotImplementedException("GenerateMatchesCsvAsync must be implemented to fetch real Bundesliga data.");
     }
 
     private Task<string> GenerateEventsCsvAsync()
